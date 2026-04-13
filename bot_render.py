@@ -11,7 +11,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 user_tasks = {}
 
 async def start(update, context):
-    text = """🤖 Бот-напоминалка
+    text = """🤖 *Бот-напоминалка*
 
 /today - задачи на сегодня
 /week - задачи на неделю
@@ -20,7 +20,7 @@ async def start(update, context):
 
 Как добавить задачу:
 напомни выпить воду каждый день в 8:00"""
-    await update.message.reply_text(text)
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 
 def parse_task(text):
@@ -44,6 +44,36 @@ def parse_task(text):
     return {"name": name, "time": time_str, "period": "daily"}
 
 
+async def send_reminder_callback(context):
+    """Отправляет напоминание"""
+    data = context.job.data
+    keyboard = [[InlineKeyboardButton("✅ Выполнить", callback_data=f"done_{data['task_id']}")]]
+    await context.bot.send_message(
+        chat_id=data["chat_id"],
+        text=f"🔔 Напоминание: {data['task_name']}!",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def schedule_reminder(chat_id, task_id, task, context):
+    """Планирует напоминание"""
+    now = datetime.now()
+    hour, minute = map(int, task["time"].split(':'))
+    
+    remind_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if remind_time <= now:
+        remind_time += timedelta(days=1)
+    
+    delay = (remind_time - now).total_seconds()
+    
+    context.application.job_queue.run_once(
+        send_reminder_callback,
+        delay,
+        data={"chat_id": chat_id, "task_name": task["name"], "task_id": task_id}
+    )
+    print(f"✅ Запланировано: {task['name']} в {remind_time.strftime('%H:%M')}")
+
+
 async def add_task(update, context):
     chat_id = update.effective_chat.id
     text = update.message.text.lower()
@@ -53,16 +83,18 @@ async def add_task(update, context):
     
     task = parse_task(text)
     if not task:
-        await update.message.reply_text("Не понял формат")
+        await update.message.reply_text("Не понял формат. Пример: напомни выпить воду в 8:00")
         return True
     
     if chat_id not in user_tasks:
         user_tasks[chat_id] = {}
     
-    task_id = f"{task['name']}_{task['time']}"
+    task_id = f"{task['name']}_{task['time']}_{datetime.now().timestamp()}"
     user_tasks[chat_id][task_id] = task
     
     await update.message.reply_text(f"✅ Задача '{task['name']}' на {task['time']} сохранена!")
+    
+    await schedule_reminder(chat_id, task_id, task, context)
     return True
 
 
@@ -77,7 +109,7 @@ async def show_tasks(update, context):
     for i, (task_id, task) in enumerate(tasks, 1):
         keyboard.append([InlineKeyboardButton(f"🗑 {i}. {task['name']} - {task['time']}", callback_data=f"delete_{task_id}")])
     
-    await update.message.reply_text("Список задач:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("📋 Список задач:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
 async def delete_callback(update, context):
