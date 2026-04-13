@@ -50,22 +50,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def parse_task(text):
     text = text.lower()
     
+    # Ищем время
     match = re.search(r"(\d{1,2})[:.](\d{2})", text)
     if not match:
         return None
     time_str = f"{match.group(1)}:{match.group(2)}"
     
+    # Извлекаем название задачи
+    # Убираем слово "напомни"
     name = text.replace("напомни", "")
     
+    # Убираем время из строки
+    name = name.replace(time_str, "")
+    
+    # Убираем все фразы с периодичностью
+    for phrase in ["каждый день", "ежедневно", "каждый", "по вторникам", "по средам", "по четвергам", "по понедельникам", "по пятницам", "по субботам", "по воскресеньям"]:
+        name = name.replace(phrase, "")
+    
+    # Убираем слово "в" перед временем
     if " в " in name:
         name = name.split(" в ")[0]
     elif " в" in name:
         name = name.split(" в")[0]
     
+    # Убираем лишние пробелы
     name = name.strip()
+    
+    # Если название пустое, ставим "задача"
     if not name:
         name = "задача"
     
+    # Определяем периодичность
     period = "daily"
     period_value = "*"
     
@@ -81,7 +96,6 @@ def parse_task(text):
             period_value = days
     
     return {"name": name, "time": time_str, "period": period, "period_value": period_value}
-
 
 def check_task_for_date(task, date):
     if task["period"] == "daily":
