@@ -56,15 +56,32 @@ def parse_task(text):
         return None
     time_str = f"{match.group(1)}:{match.group(2)}"
     
-    # Извлекаем название задачи
-    # Убираем слово "напомни"
-    name = text.replace("напомни", "")
+    # Проверяем, есть ли в тексте дни недели
+    days_found = []
+    for day_name, day_num in WEEKDAYS.items():
+        if day_name in text:
+            days_found.append(day_num)
     
-    # Убираем время из строки
+    # Если нашли дни недели — это еженедельная задача
+    if days_found:
+        period = "weekly"
+        period_value = days_found
+    else:
+        period = "daily"
+        period_value = "*"
+    
+    # Извлекаем название задачи
+    name = text.replace("напомни", "")
     name = name.replace(time_str, "")
     
-    # Убираем все фразы с периодичностью
-    for phrase in ["каждый день", "ежедневно", "каждый", "по вторникам", "по средам", "по четвергам", "по понедельникам", "по пятницам", "по субботам", "по воскресеньям"]:
+    # Убираем дни недели из названия
+    for day_name in WEEKDAYS.keys():
+        name = name.replace(day_name, "")
+    name = name.replace(",", "")
+    name = name.replace("и", "")
+    
+    # Убираем фразы с периодичностью
+    for phrase in ["каждый день", "ежедневно", "каждый"]:
         name = name.replace(phrase, "")
     
     # Убираем слово "в" перед временем
@@ -73,30 +90,11 @@ def parse_task(text):
     elif " в" in name:
         name = name.split(" в")[0]
     
-    # Убираем лишние пробелы
     name = name.strip()
-    
-    # Если название пустое, ставим "задача"
     if not name:
         name = "задача"
     
-    # Определяем периодичность
-    period = "daily"
-    period_value = "*"
-    
-    if "каждый день" in text or "ежедневно" in text:
-        period = "daily"
-    elif any(day in text for day in ["вторник", "четверг", "понедельник", "среда", "пятница", "суббота", "воскресенье"]):
-        days = []
-        for day_name, day_num in WEEKDAYS.items():
-            if day_name in text:
-                days.append(day_num)
-        if days:
-            period = "weekly"
-            period_value = days
-    
     return {"name": name, "time": time_str, "period": period, "period_value": period_value}
-
 def check_task_for_date(task, date):
     if task["period"] == "daily":
         return True
