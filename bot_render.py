@@ -229,10 +229,9 @@ def main():
     app.add_handler(CommandHandler("report", show_report))
     app.add_handler(CallbackQueryHandler(delete_task_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
+
     print("🤖 Бот запущен на Render!")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
