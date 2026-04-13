@@ -49,21 +49,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def parse_task(text):
     text = text.lower()
+    
     match = re.search(r"(\d{1,2})[:.](\d{2})", text)
     if not match:
         return None
     time_str = f"{match.group(1)}:{match.group(2)}"
     
-    name = text.split("в")[0].replace("напомни", "").strip()
+    name = text.replace("напомни", "")
+    
+    if " в " in name:
+        name = name.split(" в ")[0]
+    elif " в" in name:
+        name = name.split(" в")[0]
+    
+    name = name.strip()
     if not name:
         name = "задача"
     
     period = "daily"
     period_value = "*"
     
-    if "каждый день" in text:
+    if "каждый день" in text or "ежедневно" in text:
         period = "daily"
-    elif "вторник" in text or "четверг" in text or "понедельник" in text:
+    elif any(day in text for day in ["вторник", "четверг", "понедельник", "среда", "пятница", "суббота", "воскресенье"]):
         days = []
         for day_name, day_num in WEEKDAYS.items():
             if day_name in text:
@@ -98,7 +106,7 @@ async def add_task(update, context):
     if chat_id not in user_tasks:
         user_tasks[chat_id] = {}
     
-    task_id = f"{task['name']}_{task['time']}"
+    task_id = f"{task['name']}_{task['time']}_{datetime.now().timestamp()}"
     user_tasks[chat_id][task_id] = task
     
     await update.message.reply_text(f"✅ Задача '{task['name']}' на {task['time']} сохранена!")
@@ -136,7 +144,7 @@ async def show_tasks(update, context):
     )
 
 
-async def delete_task(update, context):
+async def delete_task_callback(update, context):
     query = update.callback_query
     await query.answer()
     
@@ -165,9 +173,9 @@ async def show_today(update, context):
             tasks.append(f"• {task['name']} - {task['time']}")
     
     if tasks:
-        await update.message.reply_text(f"Задачи на сегодня:\n" + "\n".join(tasks))
+        await update.message.reply_text(f"📅 Задачи на сегодня ({today.strftime('%d.%m.%Y')}):\n\n" + "\n".join(tasks))
     else:
-        await update.message.reply_text("На сегодня задач нет")
+        await update.message.reply_text(f"📭 На сегодня ({today.strftime('%d.%m.%Y')}) задач нет")
 
 
 async def show_week(update, context):
@@ -186,14 +194,14 @@ async def show_week(update, context):
                 tasks_today.append(f"  • {task['name']} - {task['time']}")
         
         weekday = WEEKDAY_NAMES[date.weekday()]
-        result.append(f"{weekday} ({date.strftime('%d.%m.%Y')}):")
+        result.append(f"*{weekday}* ({date.strftime('%d.%m.%Y')}):")
         if tasks_today:
             result.extend(tasks_today)
         else:
-            result.append("  нет задач")
+            result.append("  📭 нет задач")
         result.append("")
     
-    await update.message.reply_text("\n".join(result))
+    await update.message.reply_text("\n".join(result), parse_mode="Markdown")
 
 
 async def show_report(update, context):
@@ -204,7 +212,7 @@ async def show_report(update, context):
         return
     
     total = len(user_tasks[chat_id])
-    await update.message.reply_text(f"📊 Статистика\n\nВсего задач: {total}")
+    await update.message.reply_text(f"📊 *Статистика*\n\nВсего задач: {total}", parse_mode="Markdown")
 
 
 async def handle_message(update, context):
@@ -219,7 +227,7 @@ def main():
     app.add_handler(CommandHandler("week", show_week))
     app.add_handler(CommandHandler("tasks", show_tasks))
     app.add_handler(CommandHandler("report", show_report))
-    app.add_handler(CallbackQueryHandler(delete_task))
+    app.add_handler(CallbackQueryHandler(delete_task_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 Бот запущен на Render!")
