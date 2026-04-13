@@ -1,3 +1,27 @@
+async def show_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает список всех задач с кнопками удаления"""
+    chat_id = update.effective_chat.id
+    if chat_id not in user_tasks or not user_tasks[chat_id]:
+        await update.message.reply_text("📭 У вас нет задач.\n\nДобавьте: напомни выпить воду каждый день в 8:00")
+        return
+    
+    tasks = list(user_tasks[chat_id].items())
+    
+    # Создаём клавиатуру с кнопками удаления
+    keyboard = []
+    for i, (task_id, task) in enumerate(tasks, 1):
+        period_str = ""
+        if task['period'] == 'daily':
+            period_str = "ежедневно"
+        elif task['period'] == 'weekly':
+            days = [WEEKDAY_NAMES[d] for d in task['period_value']]
+            period_str = f"по {', '.join(days)}"
+        elif task['period'] == 'once':
+            period_str = f"однократно {task['end_date'].strftime('%d.%m.%Y')}"
+        
+        # Кнопка удаления для каждой задачи
+        keyboard.append([
+            InlineKeyboardButton(
 import logging
 from datetime import datetime, timedelta
 import re
@@ -206,17 +230,18 @@ async def add_task(update, context):
     await schedule_task(chat_id, task_id, task, context)
     return True
 
-
-async def show_tasks(update, context):
-    """Показывает список всех задач"""
+async def show_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает список всех задач с кнопками удаления"""
     chat_id = update.effective_chat.id
     if chat_id not in user_tasks or not user_tasks[chat_id]:
         await update.message.reply_text("📭 У вас нет задач.\n\nДобавьте: напомни выпить воду каждый день в 8:00")
         return
     
     tasks = list(user_tasks[chat_id].items())
-    text = "📋 *Список задач:*\n\n"
-    for i, (_, task) in enumerate(tasks, 1):
+    
+    # Создаём клавиатуру с кнопками удаления
+    keyboard = []
+    for i, (task_id, task) in enumerate(tasks, 1):
         period_str = ""
         if task['period'] == 'daily':
             period_str = "ежедневно"
@@ -226,35 +251,20 @@ async def show_tasks(update, context):
         elif task['period'] == 'once':
             period_str = f"однократно {task['end_date'].strftime('%d.%m.%Y')}"
         
-        text += f"{i}. *{task['name']}* - {task['time']} ({period_str})\n"
+        # Кнопка удаления для каждой задачи
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑 {i}. {task['name']} - {task['time']} ({period_str})",
+                callback_data=f"delete_{task_id}"
+            )
+        ])
     
-    text += "\n🗑 /delete [номер] - удалить задачу"
-    await update.message.reply_text(text, parse_mode="Markdown")
-
-
-async def delete_task(update, context):
-    """Удаляет задачу по номеру"""
-    chat_id = update.effective_chat.id
-    if chat_id not in user_tasks:
-        await update.message.reply_text("Нет задач")
-        return
-    
-    args = context.args
-    if not args:
-        await update.message.reply_text("Используйте: /delete 1")
-        return
-    
-    try:
-        num = int(args[0]) - 1
-        tasks = list(user_tasks[chat_id].items())
-        if 0 <= num < len(tasks):
-            task_id, task = tasks[num]
-            del user_tasks[chat_id][task_id]
-            await update.message.reply_text(f"✅ Задача '{task['name']}' удалена")
-        else:
-            await update.message.reply_text("❌ Неверный номер. Используйте /tasks для просмотра")
-    except ValueError:
-        await update.message.reply_text("❌ Введите число: /delete 2")
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "📋 *Список задач:*\n\nНажмите на задачу, чтобы удалить:",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )    
 
 
 async def show_today(update, context):
